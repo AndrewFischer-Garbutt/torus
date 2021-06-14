@@ -16,7 +16,7 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-#define RESOLUTION 10
+constexpr int RESOLUTION = 40;
 
 void computeNormals(std::vector<glm::vec3>& normals,
                             const std::vector<glm::vec3>& positions,
@@ -175,15 +175,15 @@ int main(void)
     std::vector<glm::vec3> positions;
     positions.reserve(RESOLUTION * RESOLUTION);
 
-    float a = 0.25;
+    float a = 0.5;
     float c = 1.0;
 
     for(int i = 0; i < RESOLUTION; i++)
     {
 	    for(int j = 0; j < RESOLUTION; j++)
 	    {
-            float x = (c + a*cos(float(j)*2.0*M_PI / RESOLUTION))*cos(float(i)*2*M_PI/RESOLUTION);
-            float y = (c + a*cos(float(j)*2.0*M_PI / RESOLUTION))*sin(float(i)*2*M_PI/RESOLUTION);
+            float x = (c + a*cos(float(j)*2.0*M_PI / RESOLUTION))*cos(float(i)*2*M_PI / RESOLUTION);
+            float y = (c + a*cos(float(j)*2.0*M_PI / RESOLUTION))*sin(float(i)*2*M_PI / RESOLUTION);
             float z = a*sin(float(i)*2*M_PI/RESOLUTION);
             positions.emplace_back(x,y,z);
 	    }
@@ -205,13 +205,13 @@ int main(void)
     {
 	    for(int j = 0; j < RESOLUTION; j++)
 	    {
-		    indices.push_back(i + RESOLUTION * j);
-		    indices.push_back(((i + 1) % RESOLUTION) + RESOLUTION * j);
-		    indices.push_back(i + RESOLUTION * ((j + 1) % RESOLUTION));
+		    indices.push_back(i * RESOLUTION + j);
+		    indices.push_back(((i + 1) % RESOLUTION) * RESOLUTION + j);
+		    indices.push_back(i * RESOLUTION + ((j + 1) % RESOLUTION));
 
-		    indices.push_back(i + RESOLUTION * ((j + 1) % RESOLUTION));
-		    indices.push_back(((i + 1) % RESOLUTION) + RESOLUTION * ((j + 1) % RESOLUTION));
-		    indices.push_back(((i + 1) % RESOLUTION) + RESOLUTION * j);
+		    indices.push_back(i * RESOLUTION + ((j + 1) % RESOLUTION));
+		    indices.push_back(((i + 1) % RESOLUTION) * RESOLUTION + ((j + 1) % RESOLUTION));
+		    indices.push_back(((i + 1) % RESOLUTION) * RESOLUTION + j);
 	    }
     }
 
@@ -266,7 +266,7 @@ int main(void)
 
     // Camera matrix
     glm::mat4 View = glm::lookAt(
-		    glm::vec3(4,3,3), // Camera is at (4,3,3), in World Space
+		    glm::vec3(-2,0,4), // Camera is at (4,3,3), in World Space
 		    glm::vec3(0,0,0), // and looks at the origin
 		    glm::vec3(0,1,0)  // Head is up (set to 0,-1,0 to look upside-down)
 		    );
