@@ -18,6 +18,31 @@
 
 #define RESOLUTION 10
 
+void computeNormals(std::vector<glm::vec3>& normals,
+                            const std::vector<glm::vec3>& positions,
+                            const std::vector<unsigned int>& indices)
+{
+    for(unsigned int vertex = 0; vertex < positions.size(); vertex++)
+    {
+        // Loop through each triangle and update the normal
+        // each vertex if that vertex is used in the triangle.
+        glm::vec3 N = glm::vec3(0.0f, 0.0f, 0.0f);
+        for(unsigned int ind = 0; ind < indices.size(); ind += 3)
+        {
+            if(indices[ind] == vertex || indices[ind + 1] == vertex 
+                || indices[ind + 2] == vertex)
+            {
+                glm::vec3 edge1 = positions[indices[ind + 1]] - positions[indices[ind]];
+                glm::vec3 edge2 = positions[indices[ind + 2]] - positions[indices[ind]];
+
+                N += glm::normalize(glm::cross(edge1, edge2));
+            }
+        }
+        // Compute the normal for each vertex.
+        normals.push_back(glm::normalize(N));
+    }
+}
+
 void load_texture(const std::string& path)
 {
     unsigned int texture;
@@ -147,7 +172,8 @@ int main(void)
 	    std::cout << "Error!" << std::endl;
     }
 
-    float positions[3*RESOLUTION*RESOLUTION];
+    std::vector<glm::vec3> positions;
+    positions.reserve(RESOLUTION * RESOLUTION);
 
     float a = 0.25;
     float c = 1.0;
@@ -156,20 +182,18 @@ int main(void)
     {
 	    for(int j = 0; j < RESOLUTION; j++)
 	    {
-		float x = (c + a*cos(float(j)*2.0*M_PI / RESOLUTION))*cos(float(i)*2*M_PI/RESOLUTION);
-		float y = (c + a*cos(float(j)*2.0*M_PI / RESOLUTION))*sin(float(i)*2*M_PI/RESOLUTION);
-		float z = a*sin(float(i)*2*M_PI/RESOLUTION);
-		std::cout << x << " " << y << " " << z << std::endl;
-		positions[3*RESOLUTION*i + 3*j] = x;
-		positions[3*RESOLUTION*i + 3*j + 1] = y;
-		positions[3*RESOLUTION*i + 3*j + 2] = z;
+            float x = (c + a*cos(float(j)*2.0*M_PI / RESOLUTION))*cos(float(i)*2*M_PI/RESOLUTION);
+            float y = (c + a*cos(float(j)*2.0*M_PI / RESOLUTION))*sin(float(i)*2*M_PI/RESOLUTION);
+            float z = a*sin(float(i)*2*M_PI/RESOLUTION);
+            positions.emplace_back(x,y,z);
 	    }
     }
 
     unsigned int buffer;
     glGenBuffers(1, &buffer);
     glBindBuffer(GL_ARRAY_BUFFER, buffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(positions), positions, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, positions.size() * sizeof(glm::vec3), 
+        positions.data(), GL_STATIC_DRAW);
     
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3*sizeof(float), 0);
     glEnableVertexAttribArray(0);
@@ -197,6 +221,27 @@ int main(void)
     glGenBuffers(1, &elementbuffer);
     glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementbuffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER, indices.size() * sizeof(unsigned int), indices.data(), GL_STATIC_DRAW);
+
+    std::vector<glm::vec3> normals;
+
+    computeNormals(normals, positions, indices);
+    GLuint normalbuffer;
+    glGenBuffers(1, &normalbuffer);
+    glBindBuffer(GL_ARRAY_BUFFER, normalbuffer);
+    glBufferData(GL_ARRAY_BUFFER, normals.size() * sizeof(glm::vec3), &normals[0], GL_STATIC_DRAW);
+
+    // 3rd attribute buffer : normals
+    glEnableVertexAttribArray(1);
+    glBindBuffer(GL_ARRAY_BUFFER, normalbuffer);
+    glVertexAttribPointer(
+        1,                                // attribute
+        3,                                // size
+        GL_FLOAT,                         // type
+        GL_FALSE,                         // normalized?
+        0,                                // stride
+        (void*)0                          // array buffer offset
+    );
+    
 
     /* 
      * vertexShader and fragmentShader 
@@ -244,7 +289,8 @@ int main(void)
     while (!glfwWindowShouldClose(window))
     {
 	    /* Render here */
-	    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+	    
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);  
 
 	    // Send our transformation to the currently bound shader, in the "MVP" uniform
 	    // This is done in the main loop since each model will have a different MVP matrix (At least for the M part)
