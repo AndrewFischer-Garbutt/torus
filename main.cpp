@@ -13,35 +13,13 @@
 
 #include <cmath>
 
+#include "shaders.h"
+#include "torus.h"
+
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 constexpr int RESOLUTION = 40;
-
-void computeNormals(std::vector<glm::vec3>& normals,
-                            const std::vector<glm::vec3>& positions,
-                            const std::vector<unsigned int>& indices)
-{
-    for(unsigned int vertex = 0; vertex < positions.size(); vertex++)
-    {
-        // Loop through each triangle and update the normal
-        // each vertex if that vertex is used in the triangle.
-        glm::vec3 N = glm::vec3(0.0f, 0.0f, 0.0f);
-        for(unsigned int ind = 0; ind < indices.size(); ind += 3)
-        {
-            if(indices[ind] == vertex || indices[ind + 1] == vertex 
-                || indices[ind + 2] == vertex)
-            {
-                glm::vec3 edge1 = positions[indices[ind + 1]] - positions[indices[ind]];
-                glm::vec3 edge2 = positions[indices[ind + 2]] - positions[indices[ind]];
-
-                N += glm::normalize(glm::cross(edge1, edge2));
-            }
-        }
-        // Compute the normal for each vertex.
-        normals.push_back(glm::normalize(N));
-    }
-}
 
 void load_texture(const std::string& path)
 {
@@ -87,84 +65,10 @@ void set_up_window(GLFWwindow*& window, int width, int hight, const std::string&
     glfwMakeContextCurrent(window);
 }
 
-void parseShaders(const std::string& file, std::vector<std::string>& shaders)
-{
-	std::fstream fs; fs.open("basic.shader", std::ios::in); 
-	std::string line;
-	std::stringstream ss;
-	bool start = false;
-
-	while(getline(fs, line))
-	{
-		if(line.find("#shader") == line.npos)
-		{
-			ss << line << std::endl;
-		}
-		else
-		{
-			if(start)
-			{
-				shaders.push_back(ss.str());
-				ss.str(std::string());
-			}
-			else
-				start = true;
-		}
-	}
-	shaders.push_back(ss.str());
-}
-
-static unsigned int CompileShader(unsigned int type, const std::string& source)
-{
-	unsigned int id = glCreateShader(type);
-	const char* src = source.c_str();
-	glShaderSource(id, 1, &src, nullptr);
-	glCompileShader(id);
-
-	int result;
-	glGetShaderiv(id, GL_COMPILE_STATUS, &result);
-
-	if (result == GL_FALSE)
-	{
-		int length;
-		glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length);
-		char* message = (char*)alloca(sizeof(char)*length);
-		glGetShaderInfoLog(id, length, &length, message);
-		if (type == GL_VERTEX_SHADER)
-		{
-			std::cout << "Failed to compile vertex shader." << std::endl;
-		}
-		if(type == GL_FRAGMENT_SHADER)
-		{
-			std::cout << "Failed to compile fragment shader." << std::endl;
-		}
-		std::cout << message << std::endl;
-		glDeleteShader(id);
-	}
-
-	return id;
-}
-
-static unsigned int CreateShaders(const std::string& vertexShader, const std::string& fragmentShader)
-{
-	unsigned int programID = glCreateProgram();
-	unsigned int vs = CompileShader(GL_VERTEX_SHADER, vertexShader);
-	unsigned int fs = CompileShader(GL_FRAGMENT_SHADER, fragmentShader);
-
-	glAttachShader(programID, vs);
-	glAttachShader(programID, fs);
-
-	glLinkProgram(programID);
-
-	glValidateProgram(programID);
-
-	return programID;
-}
-
 int main(void)
 {
     GLFWwindow* window;
-    set_up_window(window, 1600, 800, "Window");
+    set_up_window(window, 800, 600, "Window");
 
 
     if(glewInit() != GLEW_OK)
@@ -173,21 +77,8 @@ int main(void)
     }
 
     std::vector<glm::vec3> positions;
-    positions.reserve(RESOLUTION * RESOLUTION);
-
-    float a = 0.5;
-    float c = 1.0;
-
-    for(int i = 0; i < RESOLUTION; i++)
-    {
-	    for(int j = 0; j < RESOLUTION; j++)
-	    {
-            float x = (c + a*cos(float(j)*2.0*M_PI / RESOLUTION))*cos(float(i)*2*M_PI / RESOLUTION);
-            float y = (c + a*cos(float(j)*2.0*M_PI / RESOLUTION))*sin(float(i)*2*M_PI / RESOLUTION);
-            float z = a*sin(float(i)*2*M_PI/RESOLUTION);
-            positions.emplace_back(x,y,z);
-	    }
-    }
+    std::vector<glm::vec2> uv_coordinates;
+    compute_torus_points(positions, uv_coordinates, 0.5f, 1.0f, RESOLUTION);
 
     unsigned int buffer;
     glGenBuffers(1, &buffer);
@@ -200,20 +91,7 @@ int main(void)
 
     std::vector<unsigned int> indices;
 
-    // fill "indices" as needed
-    for(int i = 0; i < RESOLUTION; i++)
-    {
-	    for(int j = 0; j < RESOLUTION; j++)
-	    {
-		    indices.push_back(i * RESOLUTION + j);
-		    indices.push_back(((i + 1) % RESOLUTION) * RESOLUTION + j);
-		    indices.push_back(i * RESOLUTION + ((j + 1) % RESOLUTION));
-
-		    indices.push_back(i * RESOLUTION + ((j + 1) % RESOLUTION));
-		    indices.push_back(((i + 1) % RESOLUTION) * RESOLUTION + ((j + 1) % RESOLUTION));
-		    indices.push_back(((i + 1) % RESOLUTION) * RESOLUTION + j);
-	    }
-    }
+    generate_indices(indices, RESOLUTION);
 
 
     // Generate a buffer for the indices
@@ -249,6 +127,18 @@ int main(void)
      * shader code.
      */
 
+    load_texture("jupiter.jpg");
+
+    unsigned int uv_buffer;
+    glGenBuffers(1, &uv_buffer);
+    glBindBuffer(GL_ARRAY_BUFFER, uv_buffer);
+    glBufferData(GL_ARRAY_BUFFER, uv_coordinates.size() * sizeof(glm::vec2), 
+        uv_coordinates.data(), GL_STATIC_DRAW);
+    
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2*sizeof(float), 0);
+    glEnableVertexAttribArray(2);
+ 
+
     std::vector<std::string> shaders;
     parseShaders("basic.shader", shaders);
 
@@ -266,7 +156,7 @@ int main(void)
 
     // Camera matrix
     glm::mat4 View = glm::lookAt(
-		    glm::vec3(-2,0,4), // Camera is at (4,3,3), in World Space
+		    glm::vec3(0,3,-2), // Camera is at (4,3,3), in World Space
 		    glm::vec3(0,0,0), // and looks at the origin
 		    glm::vec3(0,1,0)  // Head is up (set to 0,-1,0 to look upside-down)
 		    );
@@ -278,11 +168,12 @@ int main(void)
 
     // Get a handle for our "MVP" uniform
     // Only during the initialisation
-    GLuint MatrixID = glGetUniformLocation(shader, "MVP");
-    
+    GLuint MatrixID = glGetUniformLocation(shader, "MVP"); 
+    GLuint samplerID = glGetUniformLocation(shader, "sampler");
 
     glEnable(GL_DEPTH_TEST);
     glDepthFunc(GL_LESS);
+
 
 
     /* Loop until the user closes the window */

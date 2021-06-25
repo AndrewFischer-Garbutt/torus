@@ -23,12 +23,12 @@ layout(location = 0) out vec4 diffuseColor;
 
 void main(void)
 {
-   vec3 torusColor = vec3(0.9, 0.1, 0.2);
-   vec3 lightPos = vec3(-2.0f,3.0f,3.0f);
+   vec3 torusColor = vec3(0.9, 0.6, 0.9);
+   vec3 lightPos = vec3(2.0f,0.0f,2.0f);
    vec3 L = normalize(lightPos - v.xyz);
-   vec4 Idiff = vec4(torusColor * max(dot(N,L), 0.0f), 1.0f);
+   vec4 Idiff = vec4(torusColor * max(dot(N,L), 0.0f), 0.0f);
    Idiff = clamp(Idiff, 0.0, 1.0);
-   vec4 Iambient = vec4(torusColor * vec3(0.5, 0.3, 0.4),1.0);
+   vec4 Iambient = vec4(torusColor * vec3(0.23, 0.5, 0.4),1.0);
 
    diffuseColor = Idiff + Iambient;
 }
